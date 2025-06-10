@@ -20,8 +20,8 @@
 
         /* Centered content wrapper */
         .content-wrapper {
-            max-width: 800px; /* Fixed width for centering */
-            margin: 0 auto; /* Center the content */
+            max-width: 800px;
+            margin: 0 auto;
         }
 
         header {
@@ -132,6 +132,34 @@
             background-color: #f2dede;
             color: #a94442;
         }
+
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #2ecc71;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -139,7 +167,6 @@
     <div class="main-content">
         <header>
             <h1>User Dashboard</h1>
-          
         </header>
 
         <div class="content-wrapper">
@@ -199,6 +226,10 @@
         </div>
     </div>
 
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader"></div>
+    </div>
+
     <script>
         const cashfree = Cashfree({ mode: "production" });
 
@@ -214,6 +245,7 @@
         }
 
         function initiatePayment() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
             const amount = document.querySelector('input[name="amount"]').value;
             fetch('/create_order', {
                 method: 'POST',
@@ -224,6 +256,7 @@
             })
             .then(response => response.json())
             .then(data => {
+                document.getElementById('loadingOverlay').style.display = 'none';
                 if (data.payment_session_id) {
                     let checkoutOptions = {
                         paymentSessionId: data.payment_session_id,
@@ -240,6 +273,7 @@
                 }
             })
             .catch(error => {
+                document.getElementById('loadingOverlay').style.display = 'none';
                 console.error("Error creating order:", error);
                 alert("Error creating order: " + error.message);
             });
