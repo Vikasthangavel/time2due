@@ -200,19 +200,7 @@ def payment_return():
                 else:
                     flash(message, 'error')
             else:
-                # Record payment as cancelled
-                success, message = add_payment(
-                    customer_id=customer_id,
-                    manager_id=customer['manager_id'],
-                    amount=amount,
-                    payment_mode='online',
-                    payment_status='cancelled',
-                    payment_reference=order_id
-                )
-                if success:
-                    flash('Payment was cancelled.', 'info')
-                else:
-                    flash(message, 'error')
+                flash('Payment failed or cancelled.', 'error')
         else:
             flash('Failed to verify payment status.', 'error')
     except Exception as e:
