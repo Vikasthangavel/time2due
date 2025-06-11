@@ -70,7 +70,6 @@ def user_dashboard():
         payments = []
     return render_template('user_dashboard.html', customer=customer, payments=payments)
 
-# Create Cashfree order
 @app.route('/create_order', methods=['POST'])
 @user_required
 def create_order():
@@ -107,7 +106,7 @@ def create_order():
             "order_meta": {
                 "return_url": f"{PUBLIC_URL}/payment_return?order_id={{order_id}}",
                 "notify_url": f"{PUBLIC_URL}/webhook"
-},
+            },
             "order_note": f"Payment for customer {customer['id']}"
         }
 
@@ -124,24 +123,13 @@ def create_order():
             headers=headers,
             json=payload
         )
-        print("Cashfree Response:", response.text)
+        
         if response.status_code == 200:
             response_data = response.json()
             payment_session_id = response_data.get('payment_session_id')
             if payment_session_id:
-                # Record payment as pending
-                success, message = add_payment(
-                    customer_id=customer_id,
-                    manager_id=customer['manager_id'],
-                    amount=amount,
-                    payment_mode='online',
-                    payment_status='pending',
-                    payment_reference=order_id
-                )
-                if success:
-                    return jsonify({"payment_session_id": payment_session_id, "order_id": order_id})
-                else:
-                    flash(message, 'error')
+                # Do not record payment as pending here
+                return jsonify({"payment_session_id": payment_session_id, "order_id": order_id})
             else:
                 flash('Failed to get payment session ID.', 'error')
         else:
@@ -155,50 +143,82 @@ def create_order():
         flash(f"Error creating order: {str(e)}", 'error')
         return redirect(url_for('user_dashboard'))
 
-# Handle payment return
-@app.route('/payment_return')
-@user_required
+@app.route('/payment_return', methods=['GET'])
 def payment_return():
     order_id = request.args.get('order_id')
     if not order_id:
         flash('Invalid order ID.', 'error')
         return redirect(url_for('user_dashboard'))
 
-    # Verify payment status
-    headers = {
-        "x-client-id": CASHFREE_API_KEY,
-        "x-client-secret": CASHFREE_API_SECRET,
-        "x-api-version": "2023-08-01"
-    }
-
     try:
+        headers = {
+            "Content-Type": "application/json",
+            "x-client-id": CASHFREE_API_KEY,
+            "x-client-secret": CASHFREE_API_SECRET,
+            "x-api-version": "2023-08-01"
+        }
+
+        # Verify order status with Cashfree
         response = requests.get(
             f"{CASHFREE_API_URL}/orders/{order_id}",
             headers=headers
         )
+
         if response.status_code == 200:
             order_data = response.json()
-            if order_data.get('order_status') == 'PAID':
-                # Update payment status in database
-                success, message = update_payment_status(order_id, 'completed')
+            order_status = order_data.get('order_status')
+            customer_id = session['user_id']
+            customer = get_customer_by_id(customer_id)
+            amount = order_data.get('order_amount')
+
+            if order_status == 'PAID':
+                # Record payment as success
+                success, message = add_payment(
+                    customer_id=customer_id,
+                    manager_id=customer['manager_id'],
+                    amount=amount,
+                    payment_mode='online',
+                    payment_status='success',
+                    payment_reference=order_id
+                )
                 if success:
-                    # Update customer balance
-                    customer_id = session['user_id']
-                    customer = get_customer_by_id(customer_id)
-                    amount = float(order_data.get('order_amount'))
-                    success, message = update_customer_balance(customer_id, -amount)
-                    flash(message, 'success' if success else 'error')
+                    flash('Payment successful.', 'success')
+                else:
+                    flash(message, 'error')
+            elif order_status == 'ACTIVE':
+                # Record payment as pending
+                success, message = add_payment(
+                    customer_id=customer_id,
+                    manager_id=customer['manager_id'],
+                    amount=amount,
+                    payment_mode='online',
+                    payment_status='pending',
+                    payment_reference=order_id
+                )
+                if success:
+                    flash('Payment is pending.', 'info')
                 else:
                     flash(message, 'error')
             else:
-                flash('Payment not completed or failed.', 'error')
+                # Record payment as cancelled
+                success, message = add_payment(
+                    customer_id=customer_id,
+                    manager_id=customer['manager_id'],
+                    amount=amount,
+                    payment_mode='online',
+                    payment_status='cancelled',
+                    payment_reference=order_id
+                )
+                if success:
+                    flash('Payment was cancelled.', 'info')
+                else:
+                    flash(message, 'error')
         else:
             flash('Failed to verify payment status.', 'error')
     except Exception as e:
         flash(f"Error verifying payment: {str(e)}", 'error')
 
     return redirect(url_for('user_dashboard'))
-
 # Handle Cashfree webhook
 @app.route('/webhook', methods=['POST'])
 def webhook():
