@@ -129,19 +129,7 @@ def create_order():
             response_data = response.json()
             payment_session_id = response_data.get('payment_session_id')
             if payment_session_id:
-                # Record payment as pending
-                if success:
-                    success, message = add_payment(
-                    customer_id=customer_id,
-                    manager_id=customer['manager_id'],
-                    amount=amount,
-                    payment_mode='online',
-                    payment_status='pending',
-                    payment_reference=order_id
-                )
                     return jsonify({"payment_session_id": payment_session_id, "order_id": order_id})
-                else:
-                    flash(message, 'error')
             else:
                 flash('Failed to get payment session ID.', 'error')
         else:
