@@ -223,5 +223,6 @@ def webhook():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500 
-if __name__ == '__main__':
-    app.run(debug=True, port=5003)
+
+if __name__ == '__main__':  
+    app.run(debug=True, host='0.0.0.0', port=5003)
