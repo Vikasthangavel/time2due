@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 from flask_bcrypt import Bcrypt
-
+import pytz
+IST = pytz.timezone('Asia/Kolkata')
 load_dotenv()
 bcrypt = Bcrypt()
 
@@ -107,17 +108,23 @@ def update_customer_balance(customer_id, amount):
     finally:
         cursor.close()
         conn.close()
-
+        
 def add_payment(customer_id, manager_id, amount, payment_mode, payment_status, payment_reference):
-    conn = connect()
+    conn = connect()  # Assuming connect() is defined elsewhere
     if not conn:
         return False, "Database connection failed"
     try:
         cursor = conn.cursor()
+        # Set session timezone to IST
+        cursor.execute("SET time_zone = 'Asia/Kolkata'")
+        
+        # Get current timestamp in IST
+        ist_timestamp = datetime.now(IST)
+        
         cursor.execute("""
-            INSERT INTO payments (customer_id, manager_id, amount, payment_mode, payment_status, payment_reference)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (customer_id, manager_id, amount, payment_mode, payment_status, payment_reference))
+            INSERT INTO payments (customer_id, manager_id, amount, payment_mode, payment_status, payment_reference, payment_date, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (customer_id, manager_id, amount, payment_mode, payment_status, payment_reference, ist_timestamp, ist_timestamp))
         conn.commit()
         return True, "Payment recorded successfully"
     except Error as e:
@@ -126,7 +133,6 @@ def add_payment(customer_id, manager_id, amount, payment_mode, payment_status, p
     finally:
         cursor.close()
         conn.close()
-
 def update_payment_status(payment_reference, status):
     conn = connect()
     if not conn:
