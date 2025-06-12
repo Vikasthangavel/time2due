@@ -109,7 +109,7 @@ def update_customer_balance(customer_id, amount):
         cursor.close()
         conn.close()
         
-def add_payment(customer_id, manager_id, amount, payment_mode, payment_status, payment_reference):
+def add_payment(customer_id, manager_id, amount, payment_mode, payment_status, payment_reference,payment_date=None, created_at=None):
     conn = connect()  # Assuming connect() is defined elsewhere
     if not conn:
         return False, "Database connection failed"
