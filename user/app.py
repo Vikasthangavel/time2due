@@ -6,7 +6,13 @@ import os
 import requests
 import json
 from uuid import uuid4
+from datetime import datetime
+import pytz
 
+app = Flask(__name__)
+
+# Set timezone to Asia/Kolkata
+IST = pytz.timezone('Asia/Kolkata')
 # Load environment variables
 load_dotenv()
 
@@ -162,7 +168,8 @@ def payment_return():
                     amount=amount,
                     payment_mode='online',
                     payment_status='completed',
-                    payment_reference=order_id
+                    payment_reference=order_id,
+                    timestamp=datetime.now(IST)  # Save timestamp in IST
                 )
                 if success:
                     success, message = update_customer_balance(customer_id, -amount)
@@ -193,18 +200,25 @@ def webhook():
         if event == 'PAYMENT_SUCCESS' and payment_status == 'SUCCESS':
             customer_id = payload.get('data', {}).get('customer_details', {}).get('customer_id')
             amount = float(payload.get('data', {}).get('order', {}).get('order_amount'))
-            success, message = update_payment_status(order_id, 'completed')
+            success, message = update_payment_status(
+                order_id=order_id,
+                status='completed',
+                timestamp=datetime.now(IST)  # Save timestamp in IST
+            )
             if success:
                 success, message = update_customer_balance(customer_id, -amount)
                 return jsonify({"status": "success", "message": message}), 200
             return jsonify({"status": "error", "message": message}), 500
         elif event == 'PAYMENT_FAILED' and payment_status == 'FAILED':
-            success, message = update_payment_status(order_id, 'failed')
+            success, message = update_payment_status(
+                order_id=order_id,
+                status='failed',
+                timestamp=datetime.now(IST)  # Save timestamp in IST
+            )
             return jsonify({"status": "success" if success else "error", "message": message}), 200 if success else 500
         return jsonify({"status": "error", "message": "Unhandled event type"}), 400
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
 if __name__ == '__main__':
     app.run(debug=True, port=5003)
