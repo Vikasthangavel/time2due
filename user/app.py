@@ -222,5 +222,6 @@ def webhook():
         return jsonify({"status": "error", "message": "Unhandled event type"}), 400
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500 __name__ == '__main__':
+        return jsonify({"status": "error", "message": str(e)}), 500 
+if __name__ == '__main__':
     app.run(debug=True, port=5003)
