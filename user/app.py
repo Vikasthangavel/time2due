@@ -69,7 +69,6 @@ def user_dashboard():
         flash('Failed to fetch payment history.', 'error')
         payments = []
     return render_template('user_dashboard.html', customer=customer, payments=payments)
-
 # Create Cashfree order
 @app.route('/create_order', methods=['POST'])
 @user_required
@@ -90,10 +89,7 @@ def create_order():
             flash('Payment amount cannot exceed current balance.', 'error')
             return redirect(url_for('user_dashboard'))
 
-        # Generate unique order ID
         order_id = f"order_{customer_id}_{uuid4().hex[:8]}"
-
-        # Prepare Cashfree order payload
         payload = {
             "order_amount": amount,
             "order_id": order_id,
@@ -107,7 +103,7 @@ def create_order():
             "order_meta": {
                 "return_url": f"{PUBLIC_URL}/payment_return?order_id={{order_id}}",
                 "notify_url": f"{PUBLIC_URL}/webhook"
-},
+            },
             "order_note": f"Payment for customer {customer['id']}"
         }
 
@@ -118,20 +114,14 @@ def create_order():
             "x-api-version": "2023-08-01"
         }
 
-        # Make API call to create order
-        response = requests.post(
-            f"{CASHFREE_API_URL}/orders",
-            headers=headers,
-            json=payload
-        )
+        response = requests.post(f"{CASHFREE_API_URL}/orders", headers=headers, json=payload)
         
         if response.status_code == 200:
             response_data = response.json()
             payment_session_id = response_data.get('payment_session_id')
             if payment_session_id:
-                    return jsonify({"payment_session_id": payment_session_id, "order_id": order_id})
-            else:
-                flash('Failed to get payment session ID.', 'error')
+                return jsonify({"payment_session_id": payment_session_id, "order_id": order_id})
+            flash('Failed to get payment session ID.', 'error')
         else:
             flash(f"Failed to create order: {response.text}", 'error')
         return redirect(url_for('user_dashboard'))
@@ -147,12 +137,13 @@ def create_order():
 @app.route('/payment_return')
 @user_required
 def payment_return():
+    customer_id = session['user_id']
+    customer = get_customer_by_id(customer_id)
     order_id = request.args.get('order_id')
     if not order_id:
         flash('Invalid order ID.', 'error')
         return redirect(url_for('user_dashboard'))
 
-    # Verify payment status
     headers = {
         "x-client-id": CASHFREE_API_KEY,
         "x-client-secret": CASHFREE_API_SECRET,
@@ -160,14 +151,12 @@ def payment_return():
     }
 
     try:
-        response = requests.get(
-            f"{CASHFREE_API_URL}/orders/{order_id}",
-            headers=headers
-        )
+        response = requests.get(f"{CASHFREE_API_URL}/orders/{order_id}", headers=headers)
         if response.status_code == 200:
             order_data = response.json()
             if order_data.get('order_status') == 'PAID':
-                    success, message = add_payment(
+                amount = float(order_data.get('order_amount'))
+                success, message = add_payment(
                     customer_id=customer_id,
                     manager_id=customer['manager_id'],
                     amount=amount,
@@ -176,10 +165,6 @@ def payment_return():
                     payment_reference=order_id
                 )
                 if success:
-                    # Update customer balance
-                    customer_id = session['user_id']
-                    customer = get_customer_by_id(customer_id)
-                    amount = float(order_data.get('order_amount'))
                     success, message = update_customer_balance(customer_id, -amount)
                     flash(message, 'success' if success else 'error')
                 else:
@@ -206,20 +191,17 @@ def webhook():
             return jsonify({"status": "error", "message": "Invalid webhook data"}), 400
 
         if event == 'PAYMENT_SUCCESS' and payment_status == 'SUCCESS':
+            customer_id = payload.get('data', {}).get('customer_details', {}).get('customer_id')
+            amount = float(payload.get('data', {}).get('order', {}).get('order_amount'))
             success, message = update_payment_status(order_id, 'completed')
             if success:
-                # Update customer balance
-                customer_id = payload.get('data', {}).get('customer_details', {}).get('customer_id')
-                amount = float(payload.get('data', {}).get('order', {}).get('order_amount'))
                 success, message = update_customer_balance(customer_id, -amount)
                 return jsonify({"status": "success", "message": message}), 200
-            else:
-                return jsonify({"status": "error", "message": message}), 500
+            return jsonify({"status": "error", "message": message}), 500
         elif event == 'PAYMENT_FAILED' and payment_status == 'FAILED':
             success, message = update_payment_status(order_id, 'failed')
             return jsonify({"status": "success" if success else "error", "message": message}), 200 if success else 500
-        else:
-            return jsonify({"status": "error", "message": "Unhandled event type"}), 400
+        return jsonify({"status": "error", "message": "Unhandled event type"}), 400
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
