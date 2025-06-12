@@ -167,8 +167,14 @@ def payment_return():
         if response.status_code == 200:
             order_data = response.json()
             if order_data.get('order_status') == 'PAID':
-                # Update payment status in database
-                success, message = update_payment_status(order_id, 'completed')
+                    success, message = add_payment(
+                    customer_id=customer_id,
+                    manager_id=customer['manager_id'],
+                    amount=amount,
+                    payment_mode='online',
+                    payment_status='completed',
+                    payment_reference=order_id
+                )
                 if success:
                     # Update customer balance
                     customer_id = session['user_id']
