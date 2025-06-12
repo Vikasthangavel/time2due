@@ -138,8 +138,6 @@ def create_order():
     except Exception as e:
         flash(f"Error creating order: {str(e)}", 'error')
         return redirect(url_for('user_dashboard'))
-
-# Handle payment return
 @app.route('/payment_return')
 @user_required
 def payment_return():
@@ -162,6 +160,7 @@ def payment_return():
             order_data = response.json()
             if order_data.get('order_status') == 'PAID':
                 amount = float(order_data.get('order_amount'))
+                ist_timestamp = datetime.now(IST)
                 success, message = add_payment(
                     customer_id=customer_id,
                     manager_id=customer['manager_id'],
@@ -169,7 +168,8 @@ def payment_return():
                     payment_mode='online',
                     payment_status='completed',
                     payment_reference=order_id,
-                    timestamp=datetime.now(IST)  # Save timestamp in IST
+                    payment_date=ist_timestamp,
+                    created_at=ist_timestamp
                 )
                 if success:
                     success, message = update_customer_balance(customer_id, -amount)
@@ -197,13 +197,15 @@ def webhook():
         if not order_id or not event:
             return jsonify({"status": "error", "message": "Invalid webhook data"}), 400
 
+        ist_timestamp = datetime.now(IST)
         if event == 'PAYMENT_SUCCESS' and payment_status == 'SUCCESS':
             customer_id = payload.get('data', {}).get('customer_details', {}).get('customer_id')
             amount = float(payload.get('data', {}).get('order', {}).get('order_amount'))
             success, message = update_payment_status(
                 order_id=order_id,
                 status='completed',
-                timestamp=datetime.now(IST)  # Save timestamp in IST
+                payment_date=ist_timestamp,
+                created_at=ist_timestamp
             )
             if success:
                 success, message = update_customer_balance(customer_id, -amount)
@@ -213,12 +215,12 @@ def webhook():
             success, message = update_payment_status(
                 order_id=order_id,
                 status='failed',
-                timestamp=datetime.now(IST)  # Save timestamp in IST
+                payment_date=ist_timestamp,
+                created_at=ist_timestamp
             )
             return jsonify({"status": "success" if success else "error", "message": message}), 200 if success else 500
         return jsonify({"status": "error", "message": "Unhandled event type"}), 400
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-if __name__ == '__main__':
+        return jsonify({"status": "error", "message": str(e)}), 500 __name__ == '__main__':
     app.run(debug=True, port=5003)
