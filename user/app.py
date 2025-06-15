@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
 from db import get_customer_by_mobile_and_password, get_customer_by_id, update_customer_balance, add_payment, get_payment_history, update_payment_status
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -34,7 +34,10 @@ def user_required(f):
         return f(*args, **kwargs)
     wrap.__name__ = f.__name__
     return wrap
-
+    
+@app.route('/ads.txt')
+def serve_ads_txt():
+    return send_from_directory('.', 'ads.txt')
 # User login
 @app.route('/', methods=['GET', 'POST'])
 def user_login():
