@@ -37,7 +37,7 @@ def user_required(f):
     
 @app.route('/ads.txt')
 def serve_ads_txt():
-    return send_from_directory('.', 'ads.txt')
+    return send_from_directory('.', 'ads.txt')
 # User login
 @app.route('/', methods=['GET', 'POST'])
 def user_login():
