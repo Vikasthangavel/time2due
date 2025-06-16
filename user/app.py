@@ -412,15 +412,17 @@ def payment_return():
                 )
                 if success:
                     success, message = update_customer_balance(customer_id, -amount)
-                    return jsonify({'message': message, 'status': 'success'}), 200
-                return jsonify({'error': message}), 500
+                    flash(message, 'success' if success else 'error')
+                else:
+                    flash(message, 'error')
             else:
-                return jsonify({'error': 'Payment not completed or failed'}), 400
+                flash('Payment not completed or failed.', 'error')
         else:
-            return jsonify({'error': 'Failed to verify payment status'}), response.status_code
+            flash('Failed to verify payment status.', 'error')
     except Exception as e:
-        return jsonify({'error': f"Error verifying payment: {str(e)}"}), 500
+        flash(f"Error verifying payment: {str(e)}", 'error')
 
+    return redirect(url_for('user_dashboard'))
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
