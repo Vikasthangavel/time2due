@@ -322,24 +322,20 @@ def user_dashboard():
         flash('Failed to fetch payment history.', 'error')
         payments = []
     return render_template('user_dashboard.html', customer=customer, payments=payments)
-
-# Create Cashfree order
+@app.route('/create_order', methods=['POST'])
+@user_required
 def create_order():
     customer_id = session['user_id']
     customer = get_customer_by_id(customer_id)
     if not customer:
-        flash('Customer not found.', 'error')
-        return redirect(url_for('user_dashboard'))
+        return jsonify({'error': 'Customer not found'}), 404
 
     try:
-        amount = float(request.form['amount'])
+        amount = float(request.form.get('amount'))
         if amount <= 0:
-            flash('Payment amount must be greater than 0.', 'error')
-            return redirect(url_for('user_dashboard'))
-
+            return jsonify({'error': 'Payment amount must be greater than 0'}), 400
         if amount > float(customer['balance']):
-            flash('Payment amount cannot exceed current balance.', 'error')
-            return redirect(url_for('user_dashboard'))
+            return jsonify({'error': 'Payment amount cannot exceed current balance'}), 400
 
         order_id = f"order_{customer_id}_{uuid4().hex[:8]}"
         payload = {
@@ -373,17 +369,15 @@ def create_order():
             payment_session_id = response_data.get('payment_session_id')
             if payment_session_id:
                 return jsonify({"payment_session_id": payment_session_id, "order_id": order_id})
-            flash('Failed to get payment session ID.', 'error')
+            return jsonify({'error': 'Failed to get payment session ID'}), 500
         else:
-            flash(f"Failed to create order: {response.text}", 'error')
-        return redirect(url_for('user_dashboard'))
+            return jsonify({'error': f"Failed to create order: {response.text}"}), response.status_code
 
     except ValueError:
-        flash('Invalid payment amount.', 'error')
-        return redirect(url_for('user_dashboard'))
+        return jsonify({'error': 'Invalid payment amount'}), 400
     except Exception as e:
-        flash(f"Error creating order: {str(e)}", 'error')
-        return redirect(url_for('user_dashboard'))
+        return jsonify({'error': f"Error creating order: {str(e)}"}), 500
+
 @app.route('/payment_return')
 @user_required
 def payment_return():
@@ -391,8 +385,7 @@ def payment_return():
     customer = get_customer_by_id(customer_id)
     order_id = request.args.get('order_id')
     if not order_id:
-        flash('Invalid order ID.', 'error')
-        return redirect(url_for('user_dashboard'))
+        return jsonify({'error': 'Invalid order ID'}), 400
 
     headers = {
         "x-client-id": CASHFREE_API_KEY,
@@ -419,19 +412,15 @@ def payment_return():
                 )
                 if success:
                     success, message = update_customer_balance(customer_id, -amount)
-                    flash(message, 'success' if success else 'error')
-                else:
-                    flash(message, 'error')
+                    return jsonify({'message': message, 'status': 'success'}), 200
+                return jsonify({'error': message}), 500
             else:
-                flash('Payment not completed or failed.', 'error')
+                return jsonify({'error': 'Payment not completed or failed'}), 400
         else:
-            flash('Failed to verify payment status.', 'error')
+            return jsonify({'error': 'Failed to verify payment status'}), response.status_code
     except Exception as e:
-        flash(f"Error verifying payment: {str(e)}", 'error')
+        return jsonify({'error': f"Error verifying payment: {str(e)}"}), 500
 
-    return redirect(url_for('user_dashboard'))
-
-# Handle Cashfree webhook
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
