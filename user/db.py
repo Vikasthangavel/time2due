@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 from flask_bcrypt import Bcrypt
+import pytz
 IST = pytz.timezone('Asia/Kolkata')
 load_dotenv()
 bcrypt = Bcrypt()
