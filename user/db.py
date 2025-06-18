@@ -1,24 +1,51 @@
 import mysql.connector
 from mysql.connector import Error
+from mysql.connector.pooling import MySQLConnectionPool
 from dotenv import load_dotenv
 import os
 from datetime import datetime
 from flask_bcrypt import Bcrypt
 import pytz
+
 IST = pytz.timezone('Asia/Kolkata')
 load_dotenv()
 bcrypt = Bcrypt()
 
-def connect():
-    return mysql.connector.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        database=os.getenv('DB_NAME', 'time2cable'),
-        user=os.getenv('DB_USER', 'root'),
-        password=os.getenv('DB_PASSWORD', 'root')
-    )
+# Database configuration from environment variables
+db_config_writer = {
+    'host': os.getenv('DB_HOST_WRITER', 'localhost'),
+    'database': os.getenv('DB_NAME', 'time2cable'),
+    'user': os.getenv('DB_USER_WRITER', 'root'),
+    'password': os.getenv('DB_PASSWORD_WRITER', 'root')
+}
+
+db_config_reader = {
+    'host': os.getenv('DB_HOST_READER', 'localhost'),
+    'database': os.getenv('DB_NAME', 'time2cable'),
+    'user': os.getenv('DB_USER_READER', 'root'),
+    'password': os.getenv('DB_PASSWORD_READER', 'root')
+}
+
+# Create connection pools
+writer_pool = MySQLConnectionPool(pool_name="writer_pool", pool_size=5, **db_config_writer)
+reader_pool = MySQLConnectionPool(pool_name="reader_pool", pool_size=5, **db_config_reader)
+
+def get_writer_connection():
+    try:
+        return writer_pool.get_connection()
+    except Error as e:
+        print(f"Error getting writer connection: {str(e)}")
+        return None
+
+def get_reader_connection():
+    try:
+        return reader_pool.get_connection()
+    except Error as e:
+        print(f"Error getting reader connection: {str(e)}")
+        return None
 
 def get_customer_by_mobile_and_password(mobile_number, password=None):
-    conn = connect()
+    conn = get_reader_connection()
     if not conn:
         return None
     try:
@@ -38,7 +65,7 @@ def get_customer_by_mobile_and_password(mobile_number, password=None):
         conn.close()
 
 def get_customer_by_id(customer_id):
-    conn = connect()
+    conn = get_reader_connection()
     if not conn:
         return None
     try:
@@ -57,7 +84,7 @@ def get_customer_by_id(customer_id):
         conn.close()
 
 def get_payment_history(customer_id):
-    conn = connect()
+    conn = get_reader_connection()
     if not conn:
         return None
     try:
@@ -81,7 +108,7 @@ def get_payment_history(customer_id):
         conn.close()
 
 def update_customer_balance(customer_id, amount):
-    conn = connect()
+    conn = get_writer_connection()
     if not conn:
         return False, "Database connection failed"
     try:
@@ -110,17 +137,14 @@ def update_customer_balance(customer_id, amount):
     finally:
         cursor.close()
         conn.close()
-       
-def add_payment(customer_id, manager_id, amount, payment_mode, payment_status, payment_reference,payment_date=None, created_at=None):
-    conn = connect()  # Assuming connect() is defined elsewhere
+
+def add_payment(customer_id, manager_id, amount, payment_mode, payment_status, payment_reference, payment_date=None, created_at=None):
+    conn = get_writer_connection()
     if not conn:
         return False, "Database connection failed"
     try:
         cursor = conn.cursor()
-        # Set session timezone to IST
         cursor.execute("SET time_zone = 'Asia/Kolkata'")
-        
-        # Get current timestamp in IST
         ist_timestamp = datetime.now(IST)
         
         cursor.execute("""
@@ -137,7 +161,7 @@ def add_payment(customer_id, manager_id, amount, payment_mode, payment_status, p
         conn.close()
 
 def update_payment_status(payment_reference, status):
-    conn = connect()
+    conn = get_writer_connection()
     if not conn:
         return False, "Database connection failed"
     try:
@@ -158,7 +182,7 @@ def update_payment_status(payment_reference, status):
         conn.close()
 
 def update_customer_password(customer_id, hashed_password):
-    conn = connect()
+    conn = get_writer_connection()
     if not conn:
         return False, "Database connection failed"
     try:
@@ -179,7 +203,7 @@ def update_customer_password(customer_id, hashed_password):
         conn.close()
 
 def store_otp(customer_id, otp, expires_at):
-    conn = connect()
+    conn = get_writer_connection()
     if not conn:
         return False, "Database connection failed"
     try:
@@ -199,7 +223,7 @@ def store_otp(customer_id, otp, expires_at):
         conn.close()
 
 def verify_otp_route(customer_id, otp):
-    conn = connect()
+    conn = get_writer_connection()
     if not conn:
         return False, "Database connection failed"
     try:
